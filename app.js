@@ -4,7 +4,7 @@
   const DAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
   const defaults = () => ({
     settings: { targetHours: 35, autoBreak: true, days: [0, 1, 2, 3, 4, 5, 6].map(i => ({ work: i < 5, fixed: null })) },
-    active: null, // {start, breakMin, breakStart|null}
+    active: null, // {start}
     entries: [],  // {id, start, end, breakMin}
   });
   let state = load(), tab = 'today', weekOffset = 0;
@@ -25,24 +25,18 @@
   const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
 
   // ---------- Active session helpers ----------
-  function activeEntry(now) {
+  function activeEntry() {
     const a = state.active; if (!a) return null;
-    const extra = a.breakStart ? Math.floor((now - a.breakStart) / 60000) : 0;
-    return { start: a.start, end: null, breakMin: (a.breakMin || 0) + extra };
+    return { start: a.start, end: null, breakMin: 0 };
   }
   const plan = (now, anyDay) => L.weekPlan(state.entries, state.settings, activeEntry(now), now, anyDay);
 
   // ---------- Actions ----------
   const actions = {
-    start() { state.active = { start: Date.now(), breakMin: 0, breakStart: null }; save(); render(); },
-    pause() { state.active.breakStart = Date.now(); save(); render(); },
-    resume() {
-      const a = state.active; a.breakMin = (a.breakMin || 0) + (Date.now() - a.breakStart) / 60000; a.breakStart = null; save(); render();
-    },
+    start() { state.active = { start: Date.now() }; save(); render(); },
     stop() {
       const a = state.active, now = Date.now();
-      if (a.breakStart) { a.breakMin += (now - a.breakStart) / 60000; }
-      state.entries.push({ id: now, start: a.start, end: now, breakMin: Math.round(a.breakMin) });
+      state.entries.push({ id: now, start: a.start, end: now, breakMin: 0 });
       state.active = null; save(); render();
     },
     discard() { if (confirm('Laufende Zeiterfassung verwerfen?')) { state.active = null; save(); render(); } },
@@ -53,12 +47,11 @@
     const a = state.active, ae = activeEntry(now), P = plan(now), td = P.days.find(d => d.isToday);
     let h = '<h1>Heute</h1><div class="card">';
     if (a) {
-      const net = L.netMs(ae, state.settings, now), onBreak = !!a.breakStart;
-      h += `<div class="mute center">${onBreak ? 'Pause läuft seit ' + clock(a.breakStart) : 'Gestartet um ' + clock(a.start)}</div>
+      const net = L.netMs(ae, state.settings, now), brk = Math.round(L.breakMs(ae, state.settings, now) / 60000);
+      h += `<div class="mute center">Gestartet um ${clock(a.start)}</div>
         <div class="big" id="clock">${hms(net)}</div>
-        <div class="mute center">Netto-Arbeitszeit · Pause: ${Math.round(L.breakMs(ae, state.settings, now) / 60000)} min${state.settings.autoBreak && L.breakMs(ae, state.settings, now) > (ae.breakMin * 60000) ? ' (inkl. gesetzl. Mindestpause)' : ''}</div>
-        <div class="btns">${onBreak ? '<button class="pri" data-a="resume">Pause beenden</button>' : '<button data-a="pause">Pause starten</button>'}
-        <button class="pri" data-a="stop">Feierabend</button></div>
+        <div class="mute center">Netto-Arbeitszeit · Pause wird automatisch abgezogen: ${brk} min</div>
+        <div class="btns"><button class="pri" data-a="stop">Feierabend</button></div>
         <div class="btns"><button class="danger" data-a="discard">Verwerfen</button></div>`;
     } else {
       h += `<div class="big">${clock(now)}</div><div class="btns"><button class="pri" data-a="start">Arbeit starten</button></div>`;
@@ -70,7 +63,7 @@
         <div class="row"><span>Geplant${td.auto ? ' (automatisch)' : ''}</span><b>${hm(td.plan)}</b></div>
         <div class="row"><span>Gearbeitet</span><b>${hm(td.worked)}</b></div>
         <div class="row"><span>${left >= 0 ? 'Noch offen' : 'Mehr als geplant'}</span><b class="${left < 0 ? 'warn' : ''}">${hm(Math.abs(left))}</b></div>
-        ${a && !a.breakStart && left > 0 ? `<div class="mute">Voraussichtlich Feierabend um ${clock(now + left)}</div>` : ''}</div>`;
+        ${a && left > 0 ? `<div class="mute">Voraussichtlich Feierabend um ${clock(now + left)}</div>` : ''}</div>`;
     }
     h += weekSummary(P);
     return h;
@@ -115,8 +108,7 @@
     const s = state.settings;
     let h = `<h1>Einstellungen</h1><div class="card"><label for="target">Wochenstunden</label>
       <input id="target" inputmode="decimal" value="${s.targetHours}" data-set="target">
-      <label class="chk" style="margin-top:14px"><input type="checkbox" data-set="autoBreak" ${s.autoBreak ? 'checked' : ''}> Gesetzliche Mindestpause automatisch abziehen</label>
-      <p class="mute">Mehr als 6 h Arbeit: 30 min, mehr als 9 h: 45 min. Hast du mehr Pause gemacht, zählt die tatsächliche Pause.</p></div>
+      <p class="mute">Die Pause wird automatisch abgezogen: bis 6 h keine, über 6 h bis 9 h 30 min, über 9 h 45 min.</p></div>
       <div class="card"><h2>Arbeitstage</h2><p class="mute">Haken = Arbeitstag. Feste Stunden optional (z. B. Freitag 5). Leer = automatisch verteilt.</p>`;
     for (let i = 0; i < 7; i++) {
       const d = s.days[i];
@@ -146,7 +138,7 @@
     dlg.innerHTML = `<form method="dialog"><h2>${isNew ? 'Eintrag hinzufügen' : 'Eintrag ändern'}</h2>
       <label for="d-s">Start</label><input type="datetime-local" id="d-s" value="${toLocalInput(e.start)}" required>
       <label for="d-e">Ende</label><input type="datetime-local" id="d-e" value="${toLocalInput(e.end)}" required>
-      <label for="d-b">Pause (Minuten)</label><input id="d-b" inputmode="numeric" value="${e.breakMin || 0}">
+      <label for="d-b">Längere Pause (optional, Minuten)</label><input id="d-b" inputmode="numeric" value="${e.breakMin || 0}">
       <p class="bad" id="d-err" role="alert"></p>
       <div class="btns"><button value="cancel">Abbrechen</button><button class="pri" value="ok">Speichern</button></div>
       ${isNew ? '' : '<div class="btns"><button class="danger" value="del">Eintrag löschen</button></div>'}</form>`;
@@ -201,12 +193,11 @@
       f.text().then(txt => {
         const d = JSON.parse(txt);
         if (!d || !d.settings || !Array.isArray(d.entries)) throw 0;
-        if (confirm('Backup laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) { state = Object.assign(defaults(), d); save(); render(); }
+        if (confirm('Backup laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) { state = Object.assign(defaults(), d); state.settings.autoBreak = true; state.active = state.active && state.active.start ? { start: state.active.start } : null; save(); render(); }
       }).catch(() => alert('Die Datei ist kein gültiges Backup.'));
       return;
     }
     if (t.dataset.set === 'target') { const n = num(t.value); if (n > 0 && n <= 80) s.targetHours = n; t.value = s.targetHours; }
-    else if (t.dataset.set === 'autoBreak') s.autoBreak = t.checked;
     else if (t.dataset.day != null) {
       const d = s.days[+t.dataset.day];
       if (t.dataset.f === 'work') d.work = t.checked;
