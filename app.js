@@ -94,7 +94,7 @@
     for (const d of P.days) {
       if (!d.work && d.worked === 0) continue;
       h += `<div class="day ${d.isToday ? 'today' : ''}"><div>${DAYS_LONG[d.index]}<div class="mute">${d.fixed != null ? 'fest ' + hm(d.fixed * L.H) : d.work ? (d.auto ? 'automatisch' : '') : 'frei'}</div></div>
-        <div class="r">${d.isPast || d.isToday ? hm(d.worked) + ' ' : ''}${d.work ? `<div class="mute">Soll ${hm(d.plan)}</div>` : ''}</div></div>`;
+        <div class="r">${d.isPast || d.isToday ? hm(d.worked) + ' ' : ''}${d.work && !d.isPast ? `<div class="mute">Soll ${hm(d.plan)}</div>` : ''}</div></div>`;
     }
     h += '<p class="mute">Feste Tage (z. B. Freitag 5 h) stellst du unter „Einstellungen“ ein. Die restlichen Stunden werden automatisch auf die übrigen Arbeitstage verteilt, auf Basis dessen, was schon gearbeitet wurde.</p></div>';
     return h;
