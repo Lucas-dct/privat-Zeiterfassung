@@ -210,5 +210,6 @@
   setInterval(() => { if (state.active && tab === 'today') render(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
   render();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
