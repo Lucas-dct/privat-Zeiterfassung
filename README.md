@@ -12,3 +12,8 @@ Per GitHub Pages veröffentlichen (Settings → Pages → Source: „GitHub Acti
 „Zum Home-Bildschirm hinzufügen“ wählen (Android: Chrome-Menü, iPhone: Safari → Teilen).
 
 Lokal testen: `python3 -m http.server` und `node test.js` für die Berechnungslogik.
+
+## Android-APK
+Der Workflow `.github/workflows/apk.yml` baut eine installierbare APK (Capacitor, Debug-Build).
+GitHub → Reiter „Actions" → „Android-APK bauen" → „Run workflow" → danach beim Lauf unter „Artifacts" `Zeiterfassung-apk` herunterladen,
+entpacken und `app-debug.apk` aufs Android-Handy kopieren und installieren (ggf. „Unbekannte Apps installieren" erlauben).
