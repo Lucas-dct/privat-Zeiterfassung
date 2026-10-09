@@ -3,7 +3,7 @@
   const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
   const DAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
   const defaults = () => ({
-    settings: { targetHours: 35, autoBreak: true, days: [0, 1, 2, 3, 4, 5, 6].map(i => ({ work: i < 5, fixed: null })) },
+    settings: { targetHours: 35, autoBreak: true, fontSize: 100, days: [0, 1, 2, 3, 4, 5, 6].map(i => ({ work: i < 5, fixed: null })) },
     active: null, // {start}
     entries: [],  // {id, start, end, breakMin}
   });
@@ -13,6 +13,7 @@
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.settings) return Object.assign(defaults(), s); } catch (e) {}
     return defaults();
   }
+  function applyFont() { document.documentElement.style.setProperty('--fs', (state.settings.fontSize || 100) / 100); }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Speichern nicht möglich (Speicher voll oder gesperrt).'); } }
 
   // ---------- Format ----------
@@ -117,6 +118,8 @@
     const s = state.settings;
     let h = `<h1>Einstellungen</h1><div class="card"><label for="target">Wochenstunden</label>
       <input id="target" inputmode="decimal" value="${s.targetHours}" data-set="target">
+      <label for="fs">Textgröße</label>
+      <select id="fs" data-set="fs">${[[100, 'Normal'], [115, 'Groß'], [130, 'Größer'], [150, 'Sehr groß']].map(([v, n]) => `<option value="${v}" ${(s.fontSize || 100) === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
       <p class="mute">Die Pause wird automatisch abgezogen: bis 6 h keine. Danach wächst sie mit, bis 6:30 h sind es 30 min. Ab 9 h wächst sie weiter bis 45 min (ab 9:15 h).</p></div>
       <div class="card"><h2>Arbeitstage</h2><p class="mute">Haken = Arbeitstag. Feste Stunden optional (z. B. Freitag 5). Leer = automatisch verteilt.</p>`;
     for (let i = 0; i < 5; i++) {
@@ -195,6 +198,7 @@
   $view.addEventListener('change', e => {
     const t = e.target, s = state.settings;
     if (t.dataset.set === 'target') { const n = num(t.value); if (n > 0 && n <= 80) s.targetHours = n; t.value = s.targetHours; }
+    else if (t.dataset.set === 'fs') { s.fontSize = +t.value || 100; applyFont(); }
     else if (t.dataset.day != null) {
       const d = s.days[+t.dataset.day];
       if (t.dataset.f === 'work') d.work = t.checked;
@@ -206,6 +210,7 @@
   // Laufende Anzeige jede Sekunde nur aktualisieren, wenn etwas läuft
   setInterval(() => { if (state.active && tab === 'today') render(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  applyFont();
   render();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
