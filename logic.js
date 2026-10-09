@@ -2,11 +2,14 @@
 (function (root) {
   const H = 3600000, M = 60000;
 
-  // Gesetzliche Mindestpause (DE): >6h -> 30 min, >9h -> 45 min
+  // Pause gleitend (DE-Mindestpause): bis 6:00 keine; 6:00-6:30 wächst minutengenau auf 30 min;
+  // bis 9:00 bleibt es bei 30; 9:00-9:15 wächst auf 45 min; darüber 45 min.
   function autoBreakMs(grossMs) {
-    if (grossMs > 9 * H) return 45 * M;
-    if (grossMs > 6 * H) return 30 * M;
-    return 0;
+    if (grossMs <= 6 * H) return 0;
+    if (grossMs <= 6 * H + 30 * M) return grossMs - 6 * H;
+    if (grossMs <= 9 * H) return 30 * M;
+    if (grossMs <= 9 * H + 15 * M) return 30 * M + (grossMs - 9 * H);
+    return 45 * M;
   }
 
   // Abgezogene Pause = max(tatsächlich erfasst, automatisches Minimum)

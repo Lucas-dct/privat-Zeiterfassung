@@ -1,10 +1,16 @@
 const L = require('./logic.js'); const assert = require('assert');
 const h = 3600000, m = 60000;
 const S = { autoBreak: true, targetHours: 35, days: [0,1,2,3,4,5,6].map(i => ({ work: i < 5, fixed: i === 4 ? 5 : null })) };
-// Auto-Pause
+// Auto-Pause (gleitend)
 assert.equal(L.autoBreakMs(6 * h), 0);
-assert.equal(L.autoBreakMs(6 * h + 1), 30 * m);
-assert.equal(L.autoBreakMs(9 * h + 1), 45 * m);
+assert.equal(L.autoBreakMs(6 * h + 5 * m), 5 * m);
+assert.equal(L.autoBreakMs(6 * h + 20 * m), 20 * m);
+assert.equal(L.autoBreakMs(6 * h + 30 * m), 30 * m);
+assert.equal(L.autoBreakMs(8 * h), 30 * m);
+assert.equal(L.autoBreakMs(9 * h), 30 * m);
+assert.equal(L.autoBreakMs(9 * h + 10 * m), 40 * m);
+assert.equal(L.autoBreakMs(9 * h + 15 * m), 45 * m);
+assert.equal(L.autoBreakMs(11 * h), 45 * m);
 // Netto: 8h brutto, 0 erfasste Pause -> 7.5h; 60 min erfasst -> 7h
 const t0 = new Date(2026, 9, 5, 8).getTime(); // Montag
 assert.equal(L.netMs({ start: t0, end: t0 + 8 * h }, S), 7.5 * h);

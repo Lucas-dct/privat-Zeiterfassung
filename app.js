@@ -39,6 +39,15 @@
       state.entries.push({ id: now, start: a.start, end: now, breakMin: 0 });
       state.active = null; save(); render();
     },
+    editStart() {
+      const a = state.active, cur = new Date(a.start);
+      const v = prompt('Richtige Startzeit heute (HH:MM):', p2(cur.getHours()) + ':' + p2(cur.getMinutes()));
+      if (v == null) return;
+      const m = /^(\d{1,2})[:.](\d{2})$/.exec(v.trim());
+      const d = new Date(); if (m) d.setHours(+m[1], +m[2], 0, 0);
+      if (!m || +m[1] > 23 || +m[2] > 59 || d.getTime() > Date.now()) { alert('Bitte eine Uhrzeit bis jetzt eingeben, z. B. 07:45.'); return; }
+      a.start = d.getTime(); save(); render();
+    },
     discard() { if (confirm('Laufende Zeiterfassung verwerfen?')) { state.active = null; save(); render(); } },
   };
 
@@ -48,9 +57,9 @@
     let h = '<h1>Heute</h1><div class="card">';
     if (a) {
       const net = L.netMs(ae, state.settings, now), brk = Math.round(L.breakMs(ae, state.settings, now) / 60000);
-      h += `<div class="mute center">Gestartet um ${clock(a.start)}</div>
+      h += `<div class="mute center">Gestartet um ${clock(a.start)} · <a href="#" data-a="editStart">Startzeit ändern</a></div>
         <div class="big" id="clock">${hms(net)}</div>
-        <div class="mute center">Netto-Arbeitszeit · Pause wird automatisch abgezogen: ${brk} min</div>
+        <div class="mute center">Netto-Arbeitszeit · Pause automatisch abgezogen: ${brk} min</div>
         <div class="btns"><button class="pri" data-a="stop">Feierabend</button></div>
         <div class="btns"><button class="danger" data-a="discard">Verwerfen</button></div>`;
     } else {
@@ -108,16 +117,15 @@
     const s = state.settings;
     let h = `<h1>Einstellungen</h1><div class="card"><label for="target">Wochenstunden</label>
       <input id="target" inputmode="decimal" value="${s.targetHours}" data-set="target">
-      <p class="mute">Die Pause wird automatisch abgezogen: bis 6 h keine, über 6 h bis 9 h 30 min, über 9 h 45 min.</p></div>
+      <p class="mute">Die Pause wird automatisch abgezogen: bis 6 h keine. Danach wächst sie mit, bis 6:30 h sind es 30 min. Ab 9 h wächst sie weiter bis 45 min (ab 9:15 h).</p></div>
       <div class="card"><h2>Arbeitstage</h2><p class="mute">Haken = Arbeitstag. Feste Stunden optional (z. B. Freitag 5). Leer = automatisch verteilt.</p>`;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) {
       const d = s.days[i];
       h += `<div class="dayset"><span>${DAYS[i]}</span><label class="chk"><input type="checkbox" data-day="${i}" data-f="work" ${d.work ? 'checked' : ''} aria-label="${DAYS_LONG[i]} Arbeitstag"> Arbeitstag</label>
         <input inputmode="decimal" placeholder="auto" data-day="${i}" data-f="fixed" value="${d.fixed ?? ''}" ${d.work ? '' : 'disabled'} aria-label="${DAYS_LONG[i]} feste Stunden"></div>`;
     }
-    h += `</div><div class="card"><h2>Daten</h2><p class="mute">Alles liegt nur auf diesem Handy. Sichere es regelmäßig.</p>
-      <div class="btns"><button data-a="csv">CSV exportieren</button><button data-a="json">Backup speichern</button></div>
-      <div class="btns"><button data-a="import">Backup laden</button></div><input type="file" id="file" accept=".json" hidden></div>`;
+    h += `</div><div class="card"><h2>Daten</h2><p class="mute">Alles liegt nur auf diesem Handy.</p>
+      <div class="btns"><button data-a="csv">CSV exportieren</button></div></div>`;
     return h;
   }
 
@@ -176,27 +184,16 @@
     const t = e.target.closest('button'); if (!t) return; tab = t.dataset.tab; weekOffset = 0; render();
   });
   $view.addEventListener('click', e => {
-    const b = e.target.closest('button[data-a]'); if (!b) return; const a = b.dataset.a;
+    const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a; e.preventDefault();
     if (actions[a]) actions[a]();
     else if (a === 'wprev') { weekOffset--; render(); }
     else if (a === 'wnext') { weekOffset++; render(); }
     else if (a === 'add') editDialog();
     else if (a === 'edit') editDialog(state.entries.find(x => x.id === +b.dataset.id));
     else if (a === 'csv') exportCsv();
-    else if (a === 'json') download('zeiterfassung-backup.json', JSON.stringify(state, null, 1), 'application/json');
-    else if (a === 'import') document.getElementById('file').click();
   });
   $view.addEventListener('change', e => {
     const t = e.target, s = state.settings;
-    if (t.id === 'file') {
-      const f = t.files[0]; if (!f) return;
-      f.text().then(txt => {
-        const d = JSON.parse(txt);
-        if (!d || !d.settings || !Array.isArray(d.entries)) throw 0;
-        if (confirm('Backup laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) { state = Object.assign(defaults(), d); state.settings.autoBreak = true; state.active = state.active && state.active.start ? { start: state.active.start } : null; save(); render(); }
-      }).catch(() => alert('Die Datei ist kein gültiges Backup.'));
-      return;
-    }
     if (t.dataset.set === 'target') { const n = num(t.value); if (n > 0 && n <= 80) s.targetHours = n; t.value = s.targetHours; }
     else if (t.dataset.day != null) {
       const d = s.days[+t.dataset.day];
